@@ -51,11 +51,6 @@ central_send(Pid, Msg) ->
 %% ===================================================================
 
 
-%% 1) On register, add central_id to tuple
-%% 2) On unregister, find connection with Pid and remove it.
-%%
-%% Apps get registered with:
-
 init([]) ->
   lager:info("starting controller"),
   State = #state{app_list = []},

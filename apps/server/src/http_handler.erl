@@ -27,7 +27,6 @@ init(Req, State) ->
   end.
 
 info({http_ack, Body}, Req, State) ->
-  lager:info("Received ACK!!"),
   #{<<"data">> := Data} = Body,
   #{<<"headers">> := Headers} = Data,
   Payload = jiffy:encode(Data),
