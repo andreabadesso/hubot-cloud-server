@@ -27,6 +27,8 @@ websocket_handle({text, Frame}, State) ->
   #{<<"message_type">> := MessageType} = Msg,
   handle_message(MessageType, Msg, State),
   {ok, State};
+websocket_handle(ping, State) ->
+  {reply, pong, State};
 websocket_handle(_Frame, State) ->
   lager:info("Not handled. ~p", [_Frame]),
   {ok, State}.
