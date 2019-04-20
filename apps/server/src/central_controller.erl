@@ -8,7 +8,9 @@
          send/3,
          http_send/2,
          app_send/2,
-         is_connected/1
+         is_connected/1,
+         app_connect/2,
+         app_disconnect/2
         ]).
 
 -export([init/1,
@@ -42,6 +44,11 @@ register(Pid, CentralId) ->
 unregister(Pid) ->
   gen_server:call(?MODULE, {unregister, Pid}).
 
+app_connect(UserId, CentralId) ->
+  gen_server:call(?MODULE, {app_connect, UserId, CentralId}).
+
+app_disconnect(UserId, CentralId) ->
+  gen_server:call(?MODULE, {app_disconnect, UserId, CentralId}).
 
 app_send(UserId, Msg) ->
   gen_server:call(?MODULE, {app_send, UserId, Msg}).
@@ -77,13 +84,33 @@ handle_call({register, Pid, CentralId}, _From, State) ->
   NewList = [{Pid, CentralId} | State#state.central_list],
   lager:info("add central socket ~p ~p", [Pid, CentralId]),
   {reply, ok, State#state{central_list = NewList}};
-handle_call({app_send, UserId, Msg}, {Pid, _Ref}, State) ->
-  %% We should get
-  Response = app_controller:send(UserId, Msg),
-  lager:info("Resposne: ~p", [Response]),
+handle_call({app_connect, UserId, CentralId}, _From, State) ->
+  case find(CentralId, 2, State#state.central_list) of
+    {Pid, _} ->
+      Pid ! {conn_msg, #{
+                    message_type => <<"app_connect">>,
+                    user_id => UserId
+                   }},
+      {reply, ok, State};
+    none ->
+      {reply, central_not_found, State}
+  end;
+handle_call({app_disconnect, UserId, CentralId}, _From, State) ->
+  lager:info("App disconnected ~p (~p)", [UserId, CentralId]),
+  case find(CentralId, 2, State#state.central_list) of
+    {Pid, _} ->
+      Pid ! {conn_msg, #{
+                    message_type => <<"app_disconnect">>,
+                    user_id => UserId
+                   }},
+      {reply, ok, State};
+    none ->
+      {reply, central_not_found, State}
+  end;
+handle_call({app_send, UserId, Msg}, {_Pid, _Ref}, State) ->
+  app_controller:send(UserId, Msg),
   {reply, ok, State};
 handle_call({http_send, CentralId, Data}, {FromPid, _Ref}, State) ->
-  %% We should get
   Uuid = list_to_binary(uuid:uuid_to_string(uuid:get_v4_urandom())),
   case find(CentralId, 2, State#state.central_list) of
     {Pid, _} ->
@@ -125,9 +152,18 @@ handle_call(_Request, _From, State) ->
 handle_info({'DOWN', Ref, process, Pid, Reason}, State) ->
   erlang:demonitor(Ref),
   Element = find(Pid, 1, State#state.central_list),
-  AppList = lists:delete(Element, State#state.central_list),
-  lager:info("process ~p died for reason ~p", [Pid, Reason]),
-  {noreply, State#state{central_list = AppList}};
+  case Element of
+    {_, CentralId} ->
+      NewCentralList = lists:delete(Element, State#state.central_list),
+      %% Tell app controller to disconnect all users connected
+      %% to this central.
+      lager:info("process ~p died for reason ~p", [Pid, Reason]),
+      app_controller:central_dead(CentralId),
+      {noreply, State#state{central_list = NewCentralList}};
+    none ->
+      lager:error("Process died but central was not registered."),
+      {noreply, State}
+  end;
 handle_info(Info, State) ->
   lager:warning("Unhandled msg ~p", [Info]),
   {noreply, State}.

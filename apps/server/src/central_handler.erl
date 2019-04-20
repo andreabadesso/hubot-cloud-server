@@ -44,6 +44,11 @@ websocket_info({auth_request}, State) ->
   Msg = jiffy:encode(#{message_type => <<"auth_req">>}),
   {reply, {text, Msg}, State#state{auth = false}};
 %% External message to socket
+websocket_info({conn_msg, Msg}, State) when is_map(Msg) ->
+  %% We will add the user_id that is sending the message to the
+  %% message and send to the central
+  Payload = jiffy:encode(Msg),
+  {reply, {text, Payload}, State};
 websocket_info({msg, UserId, Msg}, State) when is_map(Msg) ->
   %% We will add the user_id that is sending the message to the
   %% message and send to the central

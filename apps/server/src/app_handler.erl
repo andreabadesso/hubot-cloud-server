@@ -9,7 +9,10 @@
 
 -export([handle_message/3, auth_user/1]).
 
--record(state, {auth = false}).
+-record(state, {
+          auth = false,
+          user_id = undefined
+         }).
 
 
 init(Req, _) ->
@@ -35,7 +38,7 @@ websocket_handle(_Frame, State) ->
 websocket_info({auth_success, CentralId, UserId}, State) ->
   app_controller:register(self(), CentralId, UserId),
   Msg = jiffy:encode(#{message_type => <<"auth_success">>}),
-  {reply, {text, Msg}, State#state{auth = true}};
+  {reply, {text, Msg}, State#state{auth = true, user_id = UserId}};
 websocket_info({auth_fail}, State) ->
   Msg = jiffy:encode(#{message_type => <<"auth_fail">>}),
   {reply, {text, Msg}, State#state{auth = false}};
@@ -60,8 +63,8 @@ websocket_info(Info, State) ->
   lager:debug("unhandled websocket info msg: ~p", [Info]),
   {ok, State}.
 
-terminate(_Reason, _Req, _State) ->
-  lager:info("Terminate"),
+terminate(_Reason, _Req, State) ->
+  lager:info("User connection terminated: ~p", [State#state.user_id]),
   ok.
 
 %% ===================================================================

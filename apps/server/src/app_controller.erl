@@ -6,7 +6,8 @@
          register/3,
          unregister/1,
          send/2,
-         central_send/2
+         central_send/2,
+         central_dead/1
         ]).
 
 -export([init/1,
@@ -46,6 +47,9 @@ send(UserId, Msg) ->
 central_send(Pid, Msg) ->
   gen_server:call(?MODULE, {central_send, Pid, Msg}).
 
+central_dead(CentralId) ->
+  gen_server:call(?MODULE, {central_dead, CentralId}).
+
 %% ===================================================================
 %% gen_server
 %% ===================================================================
@@ -74,6 +78,8 @@ handle_call({register, Pid, CentralId, UserId}, _From, State) ->
     ok ->
       NewList = [{Pid, UserId, CentralId} | State#state.app_list],
       lager:info("added app socket ~p ~p", [Pid, CentralId]),
+      %% Register app socket on cloud client
+      central_controller:app_connect(UserId, CentralId),
       {reply, ok, State#state{app_list = NewList}};
     central_not_found ->
       lager:info("Central is not connected, we should kill the app socket"),
@@ -83,6 +89,8 @@ handle_call({register, Pid, CentralId, UserId}, _From, State) ->
 handle_call({unregister, Pid}, _From, State) ->
   erlang:demonitor(Pid),
   App = find(Pid, 1, State#state.app_list),
+  {_, UserId, CentralId} = App,
+  central_controller:app_disconnect(UserId, CentralId),
   NewList = lists:delete(App, State#state.app_list),
   lager:info("removed app socket ~p (~p)", [Pid, App]),
   {reply, ok, State#state{app_list = NewList}};
@@ -96,6 +104,11 @@ handle_call({send, UserId, Msg}, _From, State) ->
     none ->
       {reply, client_not_found, State}
   end;
+handle_call({central_dead, CentralId}, _From, State) ->
+  Apps = find_all(CentralId, 3, State#state.app_list),
+  [Pid ! die || {Pid, _UserId, _CentralId} <- Apps],
+  lager:info("Killed apps: ~p", [Apps]),
+  {reply, ok, State#state{app_list = []}};
 handle_call({central_send, Pid, Msg}, _From, State) ->
   %% Find the central the socket is connected to.
   case find(Pid, 1, State#state.app_list) of
@@ -115,10 +128,17 @@ handle_cast(_Msg, State) ->
 
 handle_info({'DOWN', Ref, process, Pid, Reason}, State) ->
   erlang:demonitor(Ref),
-  Element = find(Pid, 1, State#state.app_list),
-  AppList = lists:delete(Element, State#state.app_list),
-  lager:info("process ~p died for reason ~p", [Pid, Reason]),
-  {noreply, State#state{app_list = AppList}};
+  case find(Pid, 1, State#state.app_list) of
+    none ->
+      lager:info("process ~p died for reason ~p", [Pid, Reason]),
+      {noreply, State};
+    Element ->
+      {_, UserId, CentralId} = Element,
+      central_controller:app_disconnect(UserId, CentralId),
+      AppList = lists:delete(Element, State#state.app_list),
+      lager:info("process ~p died for reason ~p", [Pid, Reason]),
+      {noreply, State#state{app_list = AppList}}
+  end;
 handle_info(Info, State) ->
   lager:warning("Unhandled msg ~p", [Info]),
   {noreply, State}.
@@ -133,6 +153,30 @@ code_change(_OldVsn, State, _Extra) ->
 %% ===================================================================
 %% Internal
 %% ===================================================================
+
+find_all(K, Index, List) ->
+  find_all(K, Index, List, []).
+
+find_all(K, Index, [H | T], Acc) ->
+  case Index of
+    1 ->
+      case H of
+          {K, _, _} -> find_all(K, Index, T, [H | Acc]);
+          _ -> find_all(K, Index, T, Acc)
+      end;
+    2 ->
+      case H of
+          {_, K, _} -> find_all(K, Index, T, [H | Acc]);
+          _ -> find(K, Index, T)
+      end;
+    3 ->
+      case H of
+          {_, _, K} -> find_all(K, Index, T, [H | Acc]);
+          _ -> find(K, Index, T)
+      end
+  end;
+find_all(K, Index, [], Acc) ->
+  Acc.
 
 find(K, Index, [H|T]) ->
   case Index of
