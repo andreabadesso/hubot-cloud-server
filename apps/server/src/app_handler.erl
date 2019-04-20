@@ -7,7 +7,7 @@
          terminate/3
         ]).
 
--export([handle_message/3, auth_user/1]).
+-export([handle_message/3, auth_user/2]).
 
 -record(state, {
           auth = false,
@@ -71,18 +71,20 @@ terminate(_Reason, _Req, State) ->
 %% Internal
 %% ===================================================================
 
-auth_user(_Token) ->
-  true.
+auth_user(Token, CentralId) ->
+  PrivKey= db:get_central_privkey(CentralId),
+  lager:info("Privkey: ~p", [PrivKey]),
+  jwt:decode(Token, PrivKey).
 
 handle_message(<<"auth">>, Msg, #state{auth = false} = _State) ->
-  #{<<"token">> := Token,
-    <<"central_id">> := CentralId,
-    <<"user_id">> := UserId} = Msg,
-  Auth = auth_user(Token),
-  case Auth of
-    true ->
+  #{<<"token">> := Token, <<"central_id">> := C} = Msg,
+  case auth_user(Token, C) of
+    {ok, Data} ->
+      #{ <<"UUID">> := CentralId,
+        <<"user_id">> := UserId } = Data,
+      lager:info("Data ~p", [Data]),
       self() ! {auth_success, CentralId, UserId};
-    false ->
+    {error, _} ->
       self() ! {auth_fail}
   end;
 handle_message(_, Msg, #state{auth = true} = _State) ->

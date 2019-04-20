@@ -9,7 +9,9 @@
     cowboy,
     lager,
     jiffy,
-    uuid
+    uuid,
+    jwt,
+    epgsql
    ]},
   {env,[]},
   {modules, []},

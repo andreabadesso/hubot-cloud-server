@@ -27,18 +27,24 @@ start_link() ->
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
   AppController = {app_controller,
-                {app_controller, start_link, []},
-                permanent,
-                5000,
-                worker,
-                [app_controller]},
+                   {app_controller, start_link, []},
+                   permanent,
+                   5000,
+                   worker,
+                   [app_controller]},
   CentralController = {central_controller,
-                {central_controller, start_link, []},
-                permanent,
-                5000,
-                worker,
-                [central_controller]},
-  {ok, {{rest_for_one, 3, 10}, [AppController, CentralController]}}.
+                       {central_controller, start_link, []},
+                       permanent,
+                       5000,
+                       worker,
+                       [central_controller]},
+  Db = {db,
+        {db, start_link, []},
+        permanent,
+        5000,
+        worker,
+        [db]},
+  {ok, {{rest_for_one, 3, 10}, [AppController, CentralController, Db]}}.
 
 %%====================================================================
 %% Internal functions

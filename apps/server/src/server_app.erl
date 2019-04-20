@@ -15,6 +15,7 @@
 %%====================================================================
 
 start(_StartType, _StartArgs) ->
+  application:ensure_all_started(jwt),
   lager:start(),
   quickrand:seed(),
   Ret = server_sup:start_link(),
