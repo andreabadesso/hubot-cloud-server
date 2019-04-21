@@ -46,4 +46,3 @@ RUN ls -lh /hubot-cloud-client
 
 ENTRYPOINT ["/hubot-cloud-client/client"]
 CMD ["foreground"]
-<Paste>
