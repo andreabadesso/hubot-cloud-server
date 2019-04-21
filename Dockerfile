@@ -36,7 +36,7 @@ RUN ls -lh .
 
 COPY . .
 
-CMD rebar3 release -o server
+CMD rebar3 release
 
 RUN ls -lh .
 
@@ -44,5 +44,5 @@ EXPOSE 3000
 
 RUN ls -lh /hubot-cloud-server
 
-ENTRYPOINT ["/hubot-cloud-server/server"]
+ENTRYPOINT ["/hubot-cloud-server/server/_build/default/rel/server/bin/server"]
 CMD ["foreground"]
