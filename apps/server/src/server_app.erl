@@ -5,7 +5,7 @@
 -export([start/2, stop/1]).
 
 -define(ROUTES, [
-                 {"/central", central_handler, []},
+                 {"/pi", central_handler, []},
                  {"/websocket", app_handler, []},
                  {"/[...]", http_handler, []}
                 ]).
