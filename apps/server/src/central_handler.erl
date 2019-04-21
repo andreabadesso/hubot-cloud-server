@@ -78,17 +78,15 @@ terminate(_Reason, _Req, _State) ->
 
 auth_user(Token, CentralId) ->
   PrivKey= db:get_central_privkey(CentralId),
-  lager:info("Privkey: ~p", [PrivKey]),
   jwt:decode(Token, PrivKey).
 
 handle_message(<<"auth">>, Msg, #state{auth = false} = _State) ->
   #{<<"token">> := Token, <<"central_id">> := C} = Msg,
   case auth_user(Token, C) of
     {ok, Data} ->
-      #{ <<"UUID">> := CentralId,
-        <<"user_id">> := UserId } = Data,
+      #{ <<"central_id">> := CentralId } = Data,
       lager:info("Data ~p", [Data]),
-      self() ! {auth_success, CentralId, UserId};
+      self() ! {auth_success, CentralId};
     {error, _} ->
       self() ! {auth_fail}
   end;

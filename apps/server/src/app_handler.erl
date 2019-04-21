@@ -28,8 +28,13 @@ websocket_init(State) ->
 
 websocket_handle({text, Frame}, State) ->
   Msg = jiffy:decode(Frame, [return_maps]),
-  #{<<"message_type">> := MessageType} = Msg,
-  handle_message(MessageType, Msg, State),
+  case maps:is_key(<<"message_type">>, Msg) of
+    true ->
+      #{<<"message_type">> := MessageType} = Msg,
+      handle_message(MessageType, Msg, State);
+    false ->
+      app_controller:central_send(self(), Msg)
+  end,
   {ok, State};
 websocket_handle(_Frame, State) ->
   lager:info("Not handled. ~p", [_Frame]),
@@ -85,6 +90,7 @@ handle_message(<<"auth">>, Msg, #state{auth = false} = _State) ->
       lager:info("Data ~p", [Data]),
       self() ! {auth_success, CentralId, UserId};
     {error, _} ->
+      lager:info("Auth failed.."),
       self() ! {auth_fail}
   end;
 handle_message(_, Msg, #state{auth = true} = _State) ->

@@ -6,7 +6,7 @@
 
 -define(ROUTES, [
                  {"/central", central_handler, []},
-                 {"/app", app_handler, []},
+                 {"/websocket", app_handler, []},
                  {"/[...]", http_handler, []}
                 ]).
 
@@ -22,13 +22,18 @@ start(_StartType, _StartArgs) ->
   Dispatch = cowboy_router:compile([
                                     {'_', ?ROUTES}
                                    ]),
-  {ok, _} = cowboy:start_clear(http, [{port, 3000}], #{
-    env => #{dispatch => Dispatch}}),
+  {ok, _} = cowboy:start_clear(http, [{port, 80}], #{
+                                         env => #{dispatch => Dispatch},
+                                         middlewares => [
+                                                         cowboy_router,
+                                                         ca_cowboy_middleware,
+                                                         cowboy_handler]
+                                        }),
   Ret.
 
 %%--------------------------------------------------------------------
 stop(_State) ->
-    ok.
+  ok.
 
 %%====================================================================
 %% Internal functions

@@ -7,8 +7,6 @@ init(Req, State) ->
     path := Path,
     method := Method} = Req,
 
-  lager:info("Req ~p", [Req]),
-
   Body = case cowboy_req:has_body(Req) of
            true ->
              case cowboy_req:read_body(Req) of
@@ -19,23 +17,33 @@ init(Req, State) ->
              end;
            false -> #{}
          end,
-  lager:info("Got body ~p", [Body]),
+
   Payload = #{
     headers => Headers,
     path => Path,
     method => Method,
     body => Body
    },
+
+  Token = maps:get(<<"x-access-token">>, Headers),
   CentralId = maps:get(<<"central-id">>, Headers),
-  %% HTTP Requests don't need an active WS Connection.
-  %% We just need to auth the user JWT Token and check if
-  %% the user has access to the central on the header central-id
-  case central_controller:http_send(CentralId, Payload) of
-    ok ->
-      {cowboy_loop, Req, State, hibernate};
-    central_not_found ->
-      cowboy_req:reply(404, Req),
-      {ok, Req, State}
+
+  case auth_user(Token, CentralId) of
+    {ok, Claims} ->
+      #{ <<"UUID">> := TokenCentralId } = Claims,
+
+      %% HTTP Requests don't need an active WS Connection.
+      %% We just need to auth the user JWT Token and check if
+      %% the user has access to the central on the header central-id
+      case central_controller:http_send(TokenCentralId, Payload) of
+        ok ->
+          {cowboy_loop, Req, State, hibernate};
+        central_not_found ->
+          cowboy_req:reply(404, Req),
+          {ok, Req, State}
+      end;
+    {error, _} ->
+      self() ! {auth_fail}
   end.
 
 info({http_ack, Payload}, Req, State) ->
@@ -49,3 +57,10 @@ info({http_ack, Payload}, Req, State) ->
 info(_Msg, Req, State) ->
   {ok, Req, State, hibernate}.
 
+%% ===================================================================
+%% Internal
+%% ===================================================================
+
+auth_user(Token, CentralId) ->
+  PrivKey= db:get_central_privkey(CentralId),
+  jwt:decode(Token, PrivKey).

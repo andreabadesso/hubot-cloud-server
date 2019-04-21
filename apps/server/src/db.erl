@@ -46,8 +46,12 @@ handle_call({get_central_privkey, CentralId}, _From, State) ->
   Conn = State#state.conn,
   case epgsql:equery(Conn, "SELECT * FROM \"Central\" WHERE \"UUID\" = $1 LIMIT 1", [CentralId]) of
     {ok, _, Rows} ->
-      [{CentralId, _, PrivKey, _, Name, _, _, _, _}] = Rows,
-      {reply, PrivKey, State};
+      case Rows of
+        [{CentralId, _, PrivKey, _, Name, _, _, _, _}] ->
+          {reply, PrivKey, State};
+        [] ->
+          {reply, error, State}
+      end;
     {error, Error} ->
       lager:info("Error on query: ~p", [Error]),
       {reply, error, State}
