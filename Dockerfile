@@ -30,19 +30,19 @@ RUN chmod a+x /buildroot/rebar3/bin/rebar3
 # Setup Environment
 ENV PATH=/buildroot/erlang/20.1.7/bin:/buildroot/rebar3/bin:$PATH
 
-WORKDIR /hubot-cloud-client
+WORKDIR /hubot-cloud-server
 
 RUN ls -lh .
 
 COPY . .
 
-CMD rebar3 release -o client
+CMD rebar3 release -o server
 
 RUN ls -lh .
 
 EXPOSE 3000
 
-RUN ls -lh /hubot-cloud-client
+RUN ls -lh /hubot-cloud-server
 
-ENTRYPOINT ["/hubot-cloud-client/client"]
+ENTRYPOINT ["/hubot-cloud-server/server"]
 CMD ["foreground"]
