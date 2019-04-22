@@ -40,6 +40,10 @@ websocket_handle(_Frame, State) ->
   lager:info("Not handled. ~p", [_Frame]),
   {ok, State}.
 
+websocket_info(close_connection, State) ->
+  Msg = jiffy:encode(#{message_type => <<"disconnected">>}),
+  erlang:send_after(1000, self(), die),
+  {reply, {text, Msg}, State};
 websocket_info({auth_success, CentralId, UserId}, State) ->
   app_controller:register(self(), CentralId, UserId),
   Msg = jiffy:encode(#{message_type => <<"auth_success">>}),

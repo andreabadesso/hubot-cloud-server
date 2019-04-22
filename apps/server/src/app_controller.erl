@@ -70,7 +70,7 @@ handle_call({register, Pid, CentralId, UserId}, _From, State) ->
       %% User is already connected, we should close the old
       %% socket and add the new one.
       lager:info("User is already connected, closing last connection"),
-      OldPid ! die;
+      OldPid ! close_connection;
     none ->
       do_nothing
   end,
